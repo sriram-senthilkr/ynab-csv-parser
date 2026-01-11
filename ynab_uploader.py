@@ -78,8 +78,8 @@ class ConfigManager:
         # Standard account name mappings
         mapping_vars = {
             "OCBC_DEFAULT": "ocbc_default",
-            "POSB_EVERYDAY_USE": "posb_everyday_use",
-            "POSB_MY_SAVINGS": "posb_my_savings",
+            "POSB_EVERYDAY_USE": "posb_everyday-use",
+            "POSB_MY_SAVINGS": "posb_my-savings",
         }
         
         for env_var, account_name in mapping_vars.items():
