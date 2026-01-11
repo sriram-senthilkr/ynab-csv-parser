@@ -1,52 +1,55 @@
-#!/usr/bin/env python3
 """
-Quick start guide for YNAB integration.
+YNAB integration setup wizard.
 
-This script helps you set up the YNAB API integration step by step.
-
-Usage:
-  python3 setup_ynab.py
+Interactive guide for configuring API token and account mappings.
 """
-import os
+
 import sys
 from pathlib import Path
-from ynab_api import YNABClient, YNABAuthError
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from ynab_parser.core.api import YNABClient
+from ynab_parser.core.exceptions import YNABAuthError
+from ynab_parser.core.logging_config import setup_logging
+
+logger = setup_logging("ynab_parser.setup")
 
 
-def print_header(text: str):
+def print_header(text: str) -> None:
     """Print formatted header."""
-    print("\n" + "=" * 60)
+    print("\n" + "="*60)
     print(f"  {text}")
-    print("=" * 60)
+    print("="*60)
 
 
-def print_step(number: int, text: str):
+def print_step(number: int, text: str) -> None:
     """Print formatted step."""
     print(f"\n[{number}] {text}")
-    print("-" * 60)
+    print("-"*60)
 
 
-def setup_interactive():
+def setup_interactive() -> bool:
     """Interactive setup wizard."""
-    
     print_header("YNAB Integration Setup")
     print("\nThis wizard will help you configure YNAB integration.")
     print("You'll need your YNAB API token from https://app.ynab.com/settings/developer")
-    
+
     # Step 1: Get API Token
     print_step(1, "Get API Token")
-    print("Go to https://app.ynab.com/settings/developer")
-    print("Click 'Generate New Token' and copy it")
+    print("1. Go to https://app.ynab.com/settings/developer")
+    print("2. Click 'Generate New Token' and copy it")
     api_token = input("\nEnter your YNAB API token: ").strip()
-    
+
     if not api_token:
         print("Error: API token is required")
         return False
-    
+
     # Step 2: Verify token
     print_step(2, "Verify API Token")
     print("Connecting to YNAB API...")
-    
+
     try:
         with YNABClient(api_token) as client:
             budgets = client.get_budgets()
@@ -58,17 +61,17 @@ def setup_interactive():
     except Exception as e:
         print(f"✗ Error: {e}")
         return False
-    
+
     # Step 3: Select budget
     print_step(3, "Select Budget")
-    
+
     if not budgets:
         print("No budgets found in your YNAB account")
         return False
-    
+
     for i, budget in enumerate(budgets, 1):
-        print(f"{i}. {budget['name']} (ID: {budget['id']})")
-    
+        print(f"{i}. {budget.name} (ID: {budget.id})")
+
     while True:
         try:
             choice = int(input("\nSelect budget number: "))
@@ -79,14 +82,14 @@ def setup_interactive():
                 print("Invalid selection")
         except ValueError:
             print("Please enter a valid number")
-    
-    budget_id = selected_budget["id"]
-    print(f"✓ Selected: {selected_budget['name']}")
-    
+
+    budget_id = selected_budget.id
+    print(f"✓ Selected: {selected_budget.name}")
+
     # Step 4: Select accounts
     print_step(4, "Select Accounts")
-    print(f"Getting accounts for '{selected_budget['name']}'...")
-    
+    print(f"Getting accounts for '{selected_budget.name}'...")
+
     try:
         with YNABClient(api_token) as client:
             accounts = client.get_accounts(budget_id)
@@ -94,44 +97,44 @@ def setup_interactive():
     except Exception as e:
         print(f"Error: {e}")
         return False
-    
+
     account_mapping = {}
-    
+
     # Define expected bank/account names
     expected_accounts = [
         "OCBC_DEFAULT",
-        "POSB_EVERYDAY_USE", 
+        "POSB_EVERYDAY_USE",
         "POSB_MY_SAVINGS",
     ]
-    
+
     for i, account in enumerate(accounts, 1):
-        print(f"{i}. {account['name']} (ID: {account['id']})")
-    
+        print(f"{i}. {account.name} (ID: {account.id})")
+
     print("\nMap your bank accounts to YNAB accounts (or skip):")
-    
+
     for env_var in expected_accounts:
         print(f"\n{env_var}:")
         for i, account in enumerate(accounts, 1):
-            print(f"  {i}. {account['name']}")
+            print(f"  {i}. {account.name}")
         print(f"  0. Skip")
-        
+
         while True:
             try:
                 choice = int(input(f"Select account number (0 to skip): "))
                 if choice == 0:
                     break
                 elif 1 <= choice <= len(accounts):
-                    account_mapping[env_var] = accounts[choice - 1]["id"]
-                    print(f"✓ Mapped {env_var} -> {accounts[choice - 1]['name']}")
+                    account_mapping[env_var] = accounts[choice - 1].id
+                    print(f"✓ Mapped {env_var} -> {accounts[choice - 1].name}")
                     break
                 else:
                     print("Invalid selection")
             except ValueError:
                 print("Please enter a valid number")
-    
+
     # Step 5: Save configuration
     print_step(5, "Save Configuration")
-    
+
     env_content = f"""# YNAB API Configuration
 # Generated by setup_ynab.py
 
@@ -140,10 +143,10 @@ YNAB_BUDGET_ID={budget_id}
 
 # Account mappings
 """
-    
+
     for env_var, account_id in account_mapping.items():
         env_content += f"{env_var}={account_id}\n"
-    
+
     # Check if .env exists
     env_path = Path(".env")
     if env_path.exists():
@@ -152,30 +155,37 @@ YNAB_BUDGET_ID={budget_id}
         if overwrite != "y":
             print("Keeping existing .env file")
             return False
-    
+
     with open(".env", "w") as f:
         f.write(env_content)
-    
+
     print(f"✓ Configuration saved to .env")
-    
-    # Step 6: Test upload
-    print_step(6, "Test Configuration")
+
+    # Step 6: Test configuration
+    print_step(6, "Setup Complete!")
     print("Your configuration is ready!")
     print("\nNext steps:")
-    print("1. Place your bank CSV files in: data/incoming/")
-    print("2. Run: python3 process_ynab.py")
-    print("3. Test upload: python3 ynab_uploader.py --dry-run")
-    print("4. Upload: python3 ynab_uploader.py")
-    
+    print("1. Place your bank CSV files in: data/incoming/{bank_name}/")
+    print("   Example: data/incoming/ocbc/TransactionHistory.csv")
+    print("")
+    print("2. Parse transactions:")
+    print("   python3 -m ynab_parser.process")
+    print("")
+    print("3. Preview upload (dry-run):")
+    print("   python3 -m ynab_parser.upload --dry-run")
+    print("")
+    print("4. Upload to YNAB:")
+    print("   python3 -m ynab_parser.upload")
+
     return True
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     try:
         if setup_interactive():
             print_header("Setup Complete!")
-            print("✓ Configuration saved successfully")
+            print("✓ Configuration saved successfully\n")
             return 0
         else:
             print_header("Setup Cancelled")
@@ -189,4 +199,4 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
