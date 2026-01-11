@@ -34,18 +34,27 @@ python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-### 3. Install Dependencies
+### 3. Install the Package
 
+You have two installation options:
+
+**Option A: Editable Mode (Recommended for Development)**
 ```bash
 pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-Or install as an editable package:
-
-```bash
 pip install -e .
 ```
+
+**Option B: Normal Installation**
+```bash
+pip install --upgrade pip
+pip install .
+```
+
+**Difference:**
+- **Editable mode (`-e`)**: Links to your source code, so code changes are immediately available without reinstalling. Best for development.
+- **Normal mode**: Copies files to site-packages. You need to reinstall after making changes. Best for production use.
+
+Both modes work identically for running the package. The package must be installed (either way) to use `python -m ynab_parser` commands.
 
 ## Quick Start
 
