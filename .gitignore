@@ -1,6 +1,54 @@
 /.DS_Store
 /.venv
 
-# Ignore all OFX and CSV files everywhere
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temp files
+/tmp/
+*.tmp
+*.bak
+
+# Ignore all OFX and CSV files everywhere (data and results)
 *.ofx
 *.csv
