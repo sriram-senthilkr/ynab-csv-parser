@@ -49,6 +49,5 @@ logs/
 *.tmp
 *.bak
 
-# Ignore all OFX and CSV files everywhere (data and results)
-*.ofx
-*.csv
+# App output
+results/

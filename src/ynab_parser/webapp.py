@@ -300,10 +300,10 @@ HTML_PAGE = """<!doctype html>
 
         <label>
           Bank CSV file
-          <input id="file-input" type="file" accept=".csv,text/csv">
+          <input id="file-input" type="file" accept=".csv,.ofx,text/csv,application/x-ofx">
         </label>
 
-        <div class="muted">Supported today: OCBC and POSB/DBS statement exports.</div>
+        <div class="muted">Supported today: OCBC and POSB/DBS CSV exports, plus OFX uploads.</div>
 
         <div class="actions">
           <button id="preview-button" class="secondary" disabled>Parse Preview</button>

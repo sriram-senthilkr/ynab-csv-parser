@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Dict, List
@@ -34,6 +35,7 @@ class PreviewSession:
     preview_id: str
     file_name: str
     bank: str
+    source_format: str
     transactions: List[CSVRow]
     warning_count: int
     warnings: List[str]
@@ -68,24 +70,42 @@ class UploadUIService:
         ]
 
     def preview_upload(self, file_name: str, content: str) -> Dict[str, Any]:
-        """Parse an uploaded CSV and persist the preview in memory."""
-        bank = self._detect_bank(content)
-        if bank == "ocbc":
+        """Parse an uploaded file and persist the preview in memory."""
+        source_format = self._detect_source_format(file_name, content)
+        bank = self._detect_bank(content, source_format)
+
+        if source_format == "ofx":
+            transactions = self._parse_ofx(content, source_name=file_name)
+            warning_count = 0
+            warnings: List[str] = []
+        elif bank == "ocbc":
             parser = OCBCParser()
+            transactions = [
+                self._prepare_row_for_display(row, source_format)
+                for row in parser.parse_text(content, source_name=file_name)
+            ]
+            warning_count = self._estimate_warning_count(bank, content, len(transactions))
+            warnings = []
+            if warning_count:
+                warnings.append(
+                    f"{warning_count} row(s) were skipped because they could not be parsed."
+                )
         elif bank == "posb":
             parser = POSBParser()
+            transactions = [
+                self._prepare_row_for_display(row, source_format)
+                for row in parser.parse_text(content, source_name=file_name)
+            ]
+            warning_count = self._estimate_warning_count(bank, content, len(transactions))
+            warnings = []
+            if warning_count:
+                warnings.append(
+                    f"{warning_count} row(s) were skipped because they could not be parsed."
+                )
         else:
             raise ParserError(
-                message="Unsupported or unrecognized bank CSV format",
-                error_code="UNSUPPORTED_BANK",
-            )
-
-        transactions = parser.parse_text(content, source_name=file_name)
-        warning_count = self._estimate_warning_count(bank, content, len(transactions))
-        warnings = []
-        if warning_count:
-            warnings.append(
-                f"{warning_count} row(s) were skipped because they could not be parsed."
+                message="Unsupported or unrecognized upload format",
+                error_code="UNSUPPORTED_UPLOAD",
             )
 
         preview_id = uuid4().hex
@@ -93,6 +113,7 @@ class UploadUIService:
             preview_id=preview_id,
             file_name=file_name,
             bank=bank,
+            source_format=source_format,
             transactions=transactions,
             warning_count=warning_count,
             warnings=warnings,
@@ -103,6 +124,7 @@ class UploadUIService:
             "preview_id": preview_id,
             "file_name": file_name,
             "bank": bank.upper(),
+            "source_format": source_format.upper(),
             "row_count": len(transactions),
             "warning_count": warning_count,
             "warnings": warnings,
@@ -154,7 +176,19 @@ class UploadUIService:
             },
         }
 
-    def _detect_bank(self, content: str) -> str:
+    def _detect_source_format(self, file_name: str, content: str) -> str:
+        """Detect whether an uploaded file is CSV or OFX."""
+        if file_name.lower().endswith(".ofx"):
+            return "ofx"
+        if "<OFX>" in content.upper():
+            return "ofx"
+        return "csv"
+
+    def _detect_bank(self, content: str, source_format: str) -> str:
+        """Detect the upload source type from content."""
+        if source_format == "ofx":
+            return "ofx"
+
         """Detect a supported bank parser from the CSV header rows."""
         reader = csv.reader(StringIO(content))
         for row in reader:
@@ -192,6 +226,93 @@ class UploadUIService:
                 candidate_rows += 1
 
         return max(candidate_rows - parsed_count, 0)
+
+    def _parse_ofx(self, content: str, source_name: str = "<upload>") -> List[CSVRow]:
+        """Parse a minimal OFX transaction payload into normalized preview rows."""
+        blocks = re.findall(r"<STMTTRN>(.*?)</STMTTRN>", content, flags=re.IGNORECASE | re.DOTALL)
+        if not blocks:
+            raise ParserError(
+                message="No OFX transactions were found in the uploaded file",
+                error_code="EMPTY_OFX",
+                details={"file": source_name},
+            )
+
+        transactions: List[CSVRow] = []
+        for block in blocks:
+            amount_text = self._extract_ofx_tag(block, "TRNAMT")
+            date_text = self._extract_ofx_tag(block, "DTPOSTED")
+            payee = self._extract_ofx_tag(block, "NAME") or self._extract_ofx_tag(block, "PAYEE")
+            memo = self._extract_ofx_tag(block, "MEMO")
+
+            if not amount_text or not date_text:
+                continue
+
+            try:
+                amount = float(amount_text.replace(",", ""))
+            except ValueError:
+                continue
+
+            mmddyyyy = self._parse_ofx_date(date_text)
+            outflow = f"{abs(amount):.2f}" if amount < 0 else ""
+            inflow = f"{amount:.2f}" if amount > 0 else ""
+            if not outflow and not inflow:
+                continue
+
+            transactions.append(
+                CSVRow(
+                    date=mmddyyyy,
+                    payee=(payee or "Unknown").strip(),
+                    memo=(memo or "").strip(),
+                    outflow=outflow,
+                    inflow=inflow,
+                )
+            )
+
+        if not transactions:
+            raise ParserError(
+                message="The OFX file did not contain any uploadable transactions",
+                error_code="EMPTY_OFX",
+                details={"file": source_name},
+            )
+
+        logger.info("Parsed %s transactions from %s", len(transactions), source_name)
+        return transactions
+
+    @staticmethod
+    def _extract_ofx_tag(block: str, tag: str) -> str:
+        """Extract a simple OFX tag value from a statement block."""
+        match = re.search(
+            rf"<{tag}>([^<\r\n]+)",
+            block,
+            flags=re.IGNORECASE,
+        )
+        return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _parse_ofx_date(value: str) -> str:
+        """Convert OFX dates such as 20260309120000 or 20260309 to MM/DD/YYYY."""
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if len(digits) < 8:
+            raise ParserError(
+                message=f"Invalid OFX date: {value}",
+                error_code="INVALID_OFX_DATE",
+            )
+        year, month, day = digits[:4], digits[4:6], digits[6:8]
+        return f"{month}/{day}/{year}"
+
+    @staticmethod
+    def _prepare_row_for_display(row: CSVRow, source_format: str) -> CSVRow:
+        """Apply format-specific transforms before previewing and uploading."""
+        if source_format == "csv":
+            return CSVRow(
+                date=row.date,
+                payee=row.memo,
+                memo=row.payee,
+                outflow=row.outflow,
+                inflow=row.inflow,
+                extra_fields=row.extra_fields.copy(),
+            )
+        return row
 
     @staticmethod
     def _row_to_dict(row: CSVRow) -> Dict[str, Any]:
