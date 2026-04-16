@@ -5,6 +5,7 @@ Converts OCBC transaction history to YNAB format.
 """
 
 import csv
+from io import StringIO
 from typing import List, Optional, Iterator, Dict, Tuple
 from pathlib import Path
 
@@ -58,11 +59,26 @@ class OCBCParser(BankCSVParser):
                 details={"file": file_path},
             )
 
+    def parse_text(self, content: str, source_name: str = "<upload>") -> List[CSVRow]:
+        """Parse OCBC CSV text content."""
+        try:
+            reader = csv.reader(StringIO(content))
+            transactions = list(self._extract_transactions(reader))
+            logger.info(f"Parsed {len(transactions)} transactions from {source_name}")
+            return transactions
+        except Exception as e:
+            raise ParserError(
+                message=f"Failed to parse OCBC CSV: {e}",
+                error_code="PARSE_FAILED",
+                details={"file": source_name},
+            )
+
     def _extract_transactions(self, reader) -> Iterator[CSVRow]:
         """
         Extract transactions from CSV reader.
 
-        Expects format with header: Transaction date, Reference, Debit, Credit
+        Expects format with header starting at:
+        Transaction date, Value date, Description, Withdrawals(SGD), Deposits(SGD)
 
         Yields:
             CSVRow objects
@@ -112,18 +128,22 @@ class OCBCParser(BankCSVParser):
             data = {h: (row[i] if i < len(row) else "") for i, h in enumerate(header)}
 
             date_str = data.get("Transaction date", "").strip()
-            reference = data.get("Reference", "").strip()
-            debit = data.get("Debit", "").strip()
-            credit = data.get("Credit", "").strip()
+            value_date_str = data.get("Value date", "").strip()
+            description = data.get("Description", "").strip()
+            debit = data.get("Withdrawals(SGD)", "").strip() or data.get("Debit", "").strip()
+            credit = data.get("Deposits(SGD)", "").strip() or data.get("Credit", "").strip()
 
-            # Parse date to MM/DD/YYYY
-            date = self.parse_date(date_str, "%d/%m/%Y")
+            # Prefer value date when available since it is closer to the posted date.
+            date = self.parse_date(
+                value_date_str or date_str,
+                ("%d/%m/%Y", "%d-%m-%Y"),
+            )
             if not date:
                 logger.debug(f"Skipping row with invalid date: {date_str}")
                 return None
 
             # Clean description
-            payee = self.clean_description(reference)
+            payee = self.clean_description(description)
             if not payee:
                 payee = "Unknown"
 

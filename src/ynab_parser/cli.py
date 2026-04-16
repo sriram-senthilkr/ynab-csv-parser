@@ -30,6 +30,9 @@ Examples:
   # Process bank CSVs
   ynab-parser process
 
+  # Launch the local browser UI
+  ynab-parser ui
+
   # Upload to YNAB (dry-run first)
   ynab-parser upload --dry-run
   ynab-parser upload
@@ -105,6 +108,29 @@ For more information on each command, use:
     )
     upload_parser.set_defaults(func=handle_upload)
 
+    # UI command
+    ui_parser = subparsers.add_parser(
+        "ui",
+        help="Launch the local browser upload UI",
+    )
+    ui_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind (default: 127.0.0.1)",
+    )
+    ui_parser.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="Port to bind (default: 8765)",
+    )
+    ui_parser.add_argument(
+        "--config",
+        default=".env",
+        help="Configuration file (default: .env)",
+    )
+    ui_parser.set_defaults(func=handle_ui)
+
     return parser
 
 
@@ -152,6 +178,21 @@ def handle_upload(args) -> int:
         return main(argv)
     except Exception as e:
         print(f"Upload failed: {e}", file=sys.stderr)
+        return 1
+
+
+def handle_ui(args) -> int:
+    """Handle UI command."""
+    from ynab_parser.webapp import main
+
+    try:
+        return main([
+            "--host", args.host,
+            "--port", str(args.port),
+            "--config", args.config,
+        ])
+    except Exception as e:
+        print(f"UI launch failed: {e}", file=sys.stderr)
         return 1
 
 

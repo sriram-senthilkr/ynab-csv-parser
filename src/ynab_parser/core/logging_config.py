@@ -54,6 +54,7 @@ def setup_logging(
     """
     logger = logging.getLogger(name or "ynab_parser")
     logger.setLevel(level)
+    logger.propagate = False
 
     # Prevent duplicate handlers
     if logger.handlers:

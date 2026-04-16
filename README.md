@@ -6,6 +6,7 @@ A comprehensive Python tool that converts bank transaction exports (OCBC, POSB) 
 
 - **Multi-Bank Support**: Parse transactions from OCBC and POSB bank exports
 - **YNAB Integration**: Direct upload to YNAB via API with automatic account mapping
+- **Local Browser UI**: One-page upload flow with budget and account dropdowns
 - **Flexible Processing**: Process multiple accounts and banks in a single run
 - **Dry-Run Mode**: Preview transactions before uploading to YNAB
 - **Interactive Setup**: Guided configuration wizard for API tokens and account mappings
@@ -123,6 +124,22 @@ This shows:
 - Which YNAB accounts they'll be mapped to
 - Any validation errors
 
+### Optional: Use the Local Browser UI
+
+Instead of the CLI flow, you can launch the one-page browser UI:
+
+```bash
+python -m ynab_parser ui
+```
+
+Then open the printed local URL in your browser. The UI lets you:
+
+- load budgets from YNAB
+- load accounts for the selected budget
+- upload a bank CSV file
+- preview parsed transactions on the same page
+- click `Review and Upload` to send them directly to the selected account
+
 ### Step 5: Upload to YNAB
 
 Upload transactions to your YNAB budget:
@@ -184,6 +201,23 @@ python -m ynab_parser upload [--config FILE] [--budget-id ID] [--results-dir DIR
 - Maps account names to YNAB account IDs
 - Converts to YNAB transaction format
 - Uploads via YNAB API (or previews if `--dry-run`)
+
+### UI Command
+
+```bash
+python -m ynab_parser ui [--host HOST] [--port PORT] [--config FILE]
+```
+
+**Options:**
+- `--host`: Host to bind (default: `127.0.0.1`)
+- `--port`: Port to bind (default: `8765`)
+- `--config`: Configuration file path (default: `.env`)
+
+**What it does:**
+- Starts a local browser-based upload UI
+- Fetches budgets and accounts live from YNAB
+- Parses uploaded CSV files into a preview
+- Uploads previewed rows directly to the chosen YNAB account
 
 ## Configuration
 

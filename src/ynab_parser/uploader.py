@@ -194,7 +194,7 @@ class TransactionUploader:
             # Extract account key from filename
             # Format: bank_account_daterange.csv (e.g., ocbc_default_12-2025_01-2026.csv)
             parts = file_name.replace(".csv", "").split("_")
-            if len(parts) >= 2:
+            if len(parts) >= 4:
                 account_key = "_".join(parts[:-2]).lower()
             else:
                 account_key = file_name.replace(".csv", "").lower()
@@ -202,7 +202,7 @@ class TransactionUploader:
             account_id = account_mapping.get(account_key)
             if not account_id:
                 logger.warning(f"No account ID configured for {account_key} in {file_name}")
-                all_stats[file_name] = {"error": "No account ID configured"}
+                all_stats[file_name] = {"skipped": True, "reason": "No account ID configured"}
                 continue
 
             logger.info(f"\nProcessing {file_name}...")

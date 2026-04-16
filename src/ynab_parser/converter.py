@@ -53,6 +53,21 @@ class TransactionConverter:
                 logger.warning(f"No account ID mapped for {account_key}")
                 return None
 
+            return self.csv_to_transaction_for_account(csv_row, account_id)
+
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to convert CSV row: {csv_row}, error: {e}")
+            return None
+
+    def csv_to_transaction_for_account(
+        self,
+        csv_row: CSVRow,
+        account_id: str,
+    ) -> Optional[Transaction]:
+        """Convert a CSV row to a transaction for an explicit YNAB account ID."""
+        try:
             # Parse amounts
             amount = self._parse_amounts(csv_row.outflow, csv_row.inflow)
             if amount == 0:
@@ -115,21 +130,26 @@ class TransactionConverter:
     @staticmethod
     def _parse_date(date_str: str) -> str:
         """
-        Convert MM/DD/YYYY to YYYY-MM-DD format.
+        Convert common CSV date formats to YYYY-MM-DD format.
 
         Args:
-            date_str: Date as MM/DD/YYYY
+            date_str: Date as MM/DD/YYYY, DD/MM/YYYY, or YYYY-MM-DD
 
         Returns:
             Date as YYYY-MM-DD
         """
-        try:
-            parts = date_str.split("/")
-            if len(parts) == 3:
-                month, day, year = parts
-                return f"{year}-{month}-{day}"
-        except Exception:
-            pass
+        from datetime import datetime
+
+        value = (date_str or "").strip()
+        if not value:
+            logger.warning("Failed to parse date: empty value")
+            return date_str
+
+        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
 
         logger.warning(f"Failed to parse date: {date_str}")
         return date_str

@@ -44,6 +44,7 @@ setup(
             "ynab-process=ynab_parser.process:main",
             "ynab-upload=ynab_parser.upload:main",
             "ynab-setup=ynab_parser.setup:main",
+            "ynab-ui=ynab_parser.webapp:main",
         ],
     },
     classifiers=[

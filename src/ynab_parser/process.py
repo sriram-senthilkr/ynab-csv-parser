@@ -14,10 +14,10 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ynab_parser.core.logging_config import setup_logging
+from ynab_parser.core.logging_config import get_logger, setup_logging
 from ynab_parser.processor import TransactionProcessor
 
-logger = setup_logging("ynab_parser.process")
+logger = get_logger("process")
 
 
 def process_transactions(
@@ -34,6 +34,7 @@ def process_transactions(
     Returns:
         Exit code (0=success, 1=failure)
     """
+    setup_logging("ynab_parser.process")
     logger.info("="*60)
     logger.info("TRANSACTION PROCESSING PIPELINE")
     logger.info("="*60)

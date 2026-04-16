@@ -18,11 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ynab_parser.core.config import ConfigManager
 from ynab_parser.core.api import YNABClient
-from ynab_parser.core.logging_config import setup_logging
+from ynab_parser.core.logging_config import get_logger, setup_logging
 from ynab_parser.core.exceptions import ConfigurationError, APIError
 from ynab_parser.uploader import TransactionUploader
 
-logger = setup_logging("ynab_parser.upload")
+logger = get_logger("upload")
 
 
 def print_summary(all_stats: dict) -> int:
@@ -40,6 +40,8 @@ def print_summary(all_stats: dict) -> int:
         if "error" in stats:
             logger.error(f"✗ {file_name}: {stats['error']}")
             total_errors += 1
+        elif stats.get("skipped"):
+            logger.warning(f"↷ {file_name}: {stats.get('reason', 'Skipped')}")
         else:
             uploaded = stats.get("uploaded", 0)
             total = stats.get("total", 0)
@@ -90,6 +92,7 @@ Examples:
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main entry point."""
+    setup_logging("ynab_parser.upload")
     args = _parse_args(argv or sys.argv[1:])
 
     logger.info("="*60)

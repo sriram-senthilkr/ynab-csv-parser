@@ -5,10 +5,8 @@ Orchestrates CSV parsing and normalization workflow.
 """
 
 import csv
-import subprocess
 from typing import Dict, List, Tuple
 from pathlib import Path
-import tempfile
 import logging
 
 from .parsers import ParserFactory
@@ -54,7 +52,6 @@ class TransactionProcessor:
                 # Determine account from subdirectory
                 try:
                     rel_path = csv_file.parent.relative_to(bank_dir)
-                    account = str(rel_path).split(Path.cwd())[0] or "default"
                     # Get first-level subdirectory as account name
                     parts = str(rel_path).split("/")
                     account = parts[0] if parts[0] and parts[0] != "." else "default"

@@ -5,6 +5,7 @@ Converts POSB transaction history to YNAB format.
 """
 
 import csv
+from io import StringIO
 from typing import List, Optional, Iterator, Dict, Tuple
 from pathlib import Path
 
@@ -56,6 +57,20 @@ class POSBParser(BankCSVParser):
                 message=f"Failed to parse POSB CSV: {e}",
                 error_code="PARSE_FAILED",
                 details={"file": file_path},
+            )
+
+    def parse_text(self, content: str, source_name: str = "<upload>") -> List[CSVRow]:
+        """Parse POSB CSV text content."""
+        try:
+            reader = csv.reader(StringIO(content))
+            transactions = list(self._extract_transactions(reader))
+            logger.info(f"Parsed {len(transactions)} transactions from {source_name}")
+            return transactions
+        except Exception as e:
+            raise ParserError(
+                message=f"Failed to parse POSB CSV: {e}",
+                error_code="PARSE_FAILED",
+                details={"file": source_name},
             )
 
     def _extract_transactions(self, reader) -> Iterator[CSVRow]:
